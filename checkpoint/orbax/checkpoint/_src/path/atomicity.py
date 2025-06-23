@@ -141,36 +141,37 @@ async def _create_tmp_directory(
   Raises:
     FileExistsError: if tmp directory already exists.
   """
-  if await _exists(tmp_dir):
-    if await _is_tmp_checkpoint(tmp_dir):
-      logging.warning(
-          'Attempted to create temporary directory %s which already exists.'
-          ' Removing existing directory since it is not finalized.',
-          tmp_dir,
-      )
-      await _rmtree(tmp_dir)
-    else:
-      raise FileExistsError(
-          f'Attempted to create temporary directory {tmp_dir} which already'
-          ' exists but appears a non-temporary checkpoint.'
-      )
-  logging.info('Creating tmp directory %s', tmp_dir)
-  await async_makedir_func(
-      tmp_dir,
-      parents=True,
-      exist_ok=False,
-      mode=path_permission_mode,
-      **kwargs,
-  )
-  if checkpoint_metadata_store is not None:
-    checkpoint_metadata_store.write(
-        file_path=checkpoint_metadata.step_metadata_file_path(tmp_dir),
-        metadata=step_metadata_serialization.serialize(
-            checkpoint_metadata.StepMetadata(
-                init_timestamp_nsecs=time.time_ns()
-            )
-        ),
+  if multihost.is_primary_host(primary_host):
+    if await _exists(tmp_dir):
+      if await _is_tmp_checkpoint(tmp_dir):
+        logging.warning(
+            'Attempted to create temporary directory %s which already exists.'
+            ' Removing existing directory since it is not finalized.',
+            tmp_dir,
+        )
+        await _rmtree(tmp_dir)
+      else:
+        raise FileExistsError(
+            f'Attempted to create temporary directory {tmp_dir} which already'
+            ' exists but appears a non-temporary checkpoint.'
+        )
+    logging.info('Creating tmp directory %s', tmp_dir)
+    await async_makedir_func(
+        tmp_dir,
+        parents=True,
+        exist_ok=True,
+        mode=path_permission_mode,
+        **kwargs,
     )
+    if checkpoint_metadata_store is not None:
+      checkpoint_metadata_store.write(
+          file_path=checkpoint_metadata.step_metadata_file_path(tmp_dir),
+          metadata=step_metadata_serialization.serialize(
+              checkpoint_metadata.StepMetadata(
+                  init_timestamp_nsecs=time.time_ns()
+              )
+          ),
+      )
 
   return tmp_dir
 
@@ -581,7 +582,7 @@ async def _create_paths(
     creation_ops = []
     for path in paths:
       creation_ops.extend([
-          _mkdir(path / name, parents=False, exist_ok=False)
+          _mkdir(path / name, parents=False, exist_ok=True)
           for name in subdirectories
       ])
     await asyncio.gather(*creation_ops)
