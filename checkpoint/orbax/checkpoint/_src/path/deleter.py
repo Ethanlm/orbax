@@ -179,25 +179,19 @@ class StandardCheckpointDeleter:
         )
         return
 
-      # Attempt to rename using GCS HNS API if configured.
-      if self._todelete_full_path is not None:
-        if step_lib.is_gcs_path(self._directory):
-          self._rename_gcs_step_with_hns(step, delete_target)
-          return
-        else:
-          raise NotImplementedError()
-
-      # Attempt to rename to local subdirectory using `todelete_subdir`
-      # if configured.
-      if self._todelete_subdir is not None and not step_lib.is_gcs_path(
-          self._directory
-      ):
-        self._rename_step_to_subdir(step, delete_target)
+      if self._todelete_subdir is None or step_lib.is_gcs_path(self._directory):
+        self._rmtree(delete_target)
+        logging.info('Deleted step %d.', step)
         return
 
-      # The final case: fall back to permanent deletion.
-      self._delete_step_permanently(step, delete_target)
+      # Rename step dir.
+      rename_dir = self._directory / self._todelete_subdir
+      rename_dir.mkdir(parents=True, exist_ok=True)
 
+      dst = step_lib.build_step_path(rename_dir, self._name_format, step)
+
+      delete_target.replace(dst)
+      logging.info('Renamed step %d to %s', step, dst)
     finally:
       jax.monitoring.record_event_duration_secs(
           self._duration_metric,
