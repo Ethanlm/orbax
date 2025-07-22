@@ -455,7 +455,6 @@ async def _read_array_index_and_device_put(
       raise Exception(  # pylint: disable=broad-exception-raised
           f'[process={multihost.process_index()}] Encountered error while reading array index: {index}. See full'
           f' TensorStore details: {t.spec}.'
-          f' And the tensor store list: {t.list().result()}'
       ) from e
     for device in devices:
       sharding = jax.sharding.SingleDeviceSharding(
@@ -551,6 +550,10 @@ async def async_deserialize(
       assume_metadata=assume_metadata,
       context=context,
   )
+  tkvs = await ts.KvStore.open(tensorstore_spec)
+  kv = await tkvs.list()
+  logging.info(f"!!! KV store contents: {kv}")
+
   global_shape = tuple(t.shape if global_shape is None else global_shape)
   new_shard_shape = sharding.shard_shape(global_shape)
   if new_shard_shape != t.shape:

@@ -1207,6 +1207,7 @@ class _MultisliceCheckpointManager(
       if not np.array_equal(
           restore_mesh.device_ids, self._global_mesh.device_ids
       ):
+        logging.info("mesh devices changed, resharding...")
         # User-provided mesh is usually optimized for performance.
         # But we permuted the original mesh so that we can read each locally
         # available shard correctly. This may cause performance issues.
