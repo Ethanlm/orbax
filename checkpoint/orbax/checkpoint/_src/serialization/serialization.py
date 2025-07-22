@@ -453,8 +453,9 @@ async def _read_array_index_and_device_put(
       )
     except BaseException as e:
       raise Exception(  # pylint: disable=broad-exception-raised
-          f'Encountered error while reading array index: {index}. See full'
+          f'[process={multihost.process_index()}] Encountered error while reading array index: {index}. See full'
           f' TensorStore details: {t.spec}.'
+          f' And the tensor store list: {t.list().result()}'
       ) from e
     for device in devices:
       sharding = jax.sharding.SingleDeviceSharding(
