@@ -550,7 +550,7 @@ async def async_deserialize(
       assume_metadata=assume_metadata,
       context=context,
   )
-  tkvs = await ts.KvStore.open(tensorstore_spec)
+  tkvs = await ts.KvStore.open(tensorstore_spec['base'])
   kv = await tkvs.list()
   logging.info(f"!!! KV store contents: {kv}")
 
