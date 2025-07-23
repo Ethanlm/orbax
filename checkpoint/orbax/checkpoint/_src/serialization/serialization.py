@@ -550,9 +550,6 @@ async def async_deserialize(
       assume_metadata=assume_metadata,
       context=context,
   )
-  tkvs = await ts.KvStore.open(tensorstore_spec['base']['kvstore'])
-  kv = await tkvs.list()
-  logging.info(f"!!! KV store contents: {kv}")
 
   global_shape = tuple(t.shape if global_shape is None else global_shape)
   new_shard_shape = sharding.shard_shape(global_shape)
