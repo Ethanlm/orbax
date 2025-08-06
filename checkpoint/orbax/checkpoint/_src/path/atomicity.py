@@ -482,7 +482,7 @@ async def create_all(
           'create_tmp_directory:pre',
           prefix=barrier_sync_key_prefix,
       ),
-      timeout=multihost.DIRECTORY_CREATION_TIMEOUT,
+      timeout=multihost.coordination_timeout(),
       processes=active_processes,
   )
   if multihost.is_primary_host(multiprocessing_options.primary_host):
@@ -492,7 +492,7 @@ async def create_all(
           'create_tmp_directory:post',
           prefix=barrier_sync_key_prefix,
       ),
-      timeout=multihost.DIRECTORY_CREATION_TIMEOUT,
+      timeout=multihost.coordination_timeout(),
       processes=active_processes,
   )
   directory_creation_secs = time.time() - start
@@ -541,7 +541,7 @@ def create_all_async(
           'create_tmp_directory:post_existence_check',
           prefix=barrier_sync_key_prefix,
       ),
-      timeout=multihost.DIRECTORY_CREATION_TIMEOUT,
+      timeout=multihost.coordination_timeout(),
       processes=active_processes,
   )
 
@@ -553,7 +553,8 @@ def create_all_async(
             subdirectories=subdirectories,
         ),
         send_signals=completion_signals,
-        timeout_secs=multihost.DIRECTORY_CREATION_TIMEOUT,
+        timeout_secs=multihost.coordination_timeout(),
+        operation_id=operation_id,
     )
     future.add_to_awaitable_signals_contract(completion_signals)
 
@@ -563,7 +564,7 @@ def create_all_async(
           'add_to_awaitable_signals_contract',
           prefix=barrier_sync_key_prefix,
       ),
-      timeout=multihost.DIRECTORY_CREATION_TIMEOUT,
+      timeout=multihost.coordination_timeout(),
       processes=active_processes,
   )
   return commit_future

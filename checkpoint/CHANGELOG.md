@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix incorrectly specified timeouts waiting for signals in background threads. Decrease timeout to 60s.
+
+### Changed
+
+- #cleanup De-duplicate scattered implementations of async Path functions and
+centralize definitions.
+
+### Added
+
+ - Add `metadata()` method for loading with SafeTensors checkpoint format.
+Refactored `metadata/loading.py` to allow this change.
+- Add options to control number of replicas and min bytes in replica-parallel.
+
 ## [0.11.20] - 2025-07-28
 
 ### Added
