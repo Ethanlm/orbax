@@ -554,7 +554,6 @@ def create_all_async(
         ),
         send_signals=completion_signals,
         timeout_secs=multihost.coordination_timeout(),
-        operation_id=operation_id,
     )
     future.add_to_awaitable_signals_contract(completion_signals)
 
