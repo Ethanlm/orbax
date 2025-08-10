@@ -981,10 +981,10 @@ class _MultisliceCheckpointManager(
     persistent_saved = False
     local_saved = False
     if self.in_primary_slice:
-      logging.info('Maybe saving at step %d (persistent).', step)
-      persistent_saved = self._persistent_checkpoint_manager.save(
-          step, args=args.state, force=force
-      )
+      logging.info('Maybe saving at step %d (persistent)[Jun: ALWAYS SKIP].', step)
+    #   persistent_saved = self._persistent_checkpoint_manager.save(
+    #       step, args=args.state, force=force
+    #   )
     else:
       logging.info('Maybe saving at step %d (local).', step)
 
@@ -1349,10 +1349,13 @@ class _MultisliceCheckpointManager(
     restoring_slice_id = self._find_slice_with_complete_local_checkpoint(step)
     if restoring_slice_id > -1:
       # restore from LCM
+      logging.info('Restoring at step %d from slice %d.', step, restoring_slice_id)
       return self._restore_from_local(
           step=step,
           restoring_slice_id=restoring_slice_id,
       )
+    else:
+        raise FileNotFoundError(f'[Jun:]No local steps found in {self.directory}.')
 
     return self._restore_from_persistent(step=step)
 
