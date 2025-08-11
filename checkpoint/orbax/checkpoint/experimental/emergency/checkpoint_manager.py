@@ -1043,7 +1043,7 @@ class _MultisliceCheckpointManager(
         self._global_mesh,
         replica_axis_index=self._replica_axis_index,
     )
-    logging.vlog(1, 'per_slice_steps=%s', per_slice_steps)
+    logging.info('per_slice_steps=%s', per_slice_steps)
     return per_slice_steps
 
   def _find_slice_with_complete_local_checkpoint(self, step: int) -> int:
@@ -1391,6 +1391,17 @@ class _MultisliceCheckpointManager(
       self._persistent_checkpoint_manager.wait_until_finished()
     else:
       self._local_checkpoint_manager.wait_until_finished()
+
+    multihost.sync_global_processes(
+      multihost.unique_barrier_key(
+        'CheckpointManager:wait_until_finished',
+        prefix='emergency_checkpoint_manager',
+      ),
+      record_event_name=(
+        '/jax/orbax/write/checkpoint_finish_sync_duration_secs'
+      ),
+    )
+    logging.info('Both local and persistent checkpoints are completed.')
 
   def check_for_errors(self):
     """Checks for any outstanding errors in completed asynchronous save operations.
