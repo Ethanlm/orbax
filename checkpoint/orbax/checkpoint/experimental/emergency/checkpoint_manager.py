@@ -597,7 +597,7 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
       logging.info(
           'After broadcast, found steps %s shared between local slice'
           ' processes.',
-          per_slice_steps[slice_id],
+          per_slice_steps.get(slice_id, set()),
       )
       steps = functools.reduce(operator.ior, per_slice_steps.values(), set())
       self._steps = [x for x in steps if x != -1]
