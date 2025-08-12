@@ -345,7 +345,9 @@ def _process_local_to_global(
   broadcast_dir_key = f'broadcast_{barrier_name_and_id}/{replica_id}/'
   broadcast_dir_key = multihost._unique_barrier_key(broadcast_dir_key) + '/'  # pylint: disable=protected-access
   broadcast_key = broadcast_dir_key + str(multihost.process_index())
-  client.key_value_set(broadcast_key, ','.join([str(s) for s in values]))
+  
+  if replica_id == _SECONDARY_REPLICA_ID:
+    client.key_value_set(broadcast_key, ','.join([str(s) for s in values]))
 
   barrier_key = f'barrier_{barrier_name_and_id}'
   barrier_key = multihost._unique_barrier_key(barrier_key)  # pylint: disable=protected-access
