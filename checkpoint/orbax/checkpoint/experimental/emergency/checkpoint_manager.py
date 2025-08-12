@@ -777,11 +777,7 @@ class _MultisliceCheckpointManager(
           checkpoint_manager.MultiprocessingOptions(
               primary_host=self._persistent_primary_host,
               active_processes=multihost.unique_processes_from_devices(
-                  multislice.replica_devices(
-                      self._global_mesh,
-                      replica_axis_index=self._replica_axis_index,
-                      replica_id=primary_replica_id,
-                  )
+                  _all_devices_excepting_slice(self._global_mesh.devices, replica_id=primary_replica_id, replica_axis_index=self._replica_axis_index)
               ),
               barrier_sync_key_prefix='persistent',
           )
