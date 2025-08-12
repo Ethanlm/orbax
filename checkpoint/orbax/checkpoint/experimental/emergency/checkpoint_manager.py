@@ -373,7 +373,10 @@ def _process_local_to_global(
       int(k.split('/')[-1]): {int(s) for s in v.split(',')} if v else set()
       for k, v in client.key_value_dir_get(fixed_broadcast_dir_key)
   }
-  assert set(per_process_values.keys()) == barrier_processes
+  
+  n_processes_per_slice = jax.process_count() // multislice.slice_count()
+  
+  assert set(per_process_values.keys()) == n_processes_per_slice
   return per_process_values
 
 
