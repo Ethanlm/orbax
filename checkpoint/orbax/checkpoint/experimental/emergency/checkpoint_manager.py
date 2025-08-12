@@ -475,11 +475,12 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
     devices = np.asarray(self._global_mesh.devices)
     # Select all devices except those belonging to the primary replica.
     if not options.local.debug_use_full_global_mesh:
-      devices = _all_devices_excepting_slice(
-          devices,
-          replica_id=primary_replica_id,
-          replica_axis_index=self._replica_axis_index,
-      )
+        devices = multislice.replica_devices(global_mesh, replica_id=primary_replica_id, replica_axis_index=self._replica_axis_index)
+    #   devices = _all_devices_excepting_slice(
+    #       devices,
+    #       replica_id=primary_replica_id,
+    #       replica_axis_index=self._replica_axis_index,
+    #   )
 
     self._active_processes = multihost.unique_processes_from_devices(devices)
     multiprocessing_options = checkpoint_manager.MultiprocessingOptions(
@@ -751,13 +752,15 @@ class _MultisliceCheckpointManager(
     self._persistent_primary_host = multislice.primary_process_in_replica(
         self._global_mesh,
         replica_axis_index=self._replica_axis_index,
-        replica_id=primary_replica_id,
+        replica_id=secondary_replica_id,
     )
+
     self._local_primary_host = multislice.primary_process_in_replica(
         self._global_mesh,
         replica_axis_index=self._replica_axis_index,
-        replica_id=secondary_replica_id,
+        replica_id=primary_replica_id,
     )
+
     self._in_primary_slice = multislice.in_replica(
         multihost.process_index(),
         global_mesh,
@@ -766,6 +769,10 @@ class _MultisliceCheckpointManager(
     )
 
     if self._in_primary_slice:
+      self._local_checkpoint_manager = self._make_local_checkpoint_manager(
+          primary_replica_id
+      )
+    else:
       persistent_multiprocessing_options = (
           checkpoint_manager.MultiprocessingOptions(
               primary_host=self._persistent_primary_host,
@@ -783,10 +790,6 @@ class _MultisliceCheckpointManager(
           self._make_persistent_checkpoint_manager(
               persistent_multiprocessing_options
           )
-      )
-    else:
-      self._local_checkpoint_manager = self._make_local_checkpoint_manager(
-          primary_replica_id
       )
 
     self._local_steps = []
@@ -910,9 +913,9 @@ class _MultisliceCheckpointManager(
   def reload(self):
     """Performs disk reads to ensure internal properties are up to date."""
     if self.in_primary_slice:
-      self._persistent_checkpoint_manager.reload()
-    else:
       self._local_checkpoint_manager.reload()
+    else:
+      self._persistent_checkpoint_manager.reload()
 
   def reached_preemption(self, step: int) -> bool:
     """Returns True if a preemption sync point has been reached."""
@@ -931,9 +934,9 @@ class _MultisliceCheckpointManager(
     """
     logging.info('Checking should_save at step: %d.', step)
     if self.in_primary_slice:
-      should_save = self._persistent_checkpoint_manager.should_save(step)
-    else:
       should_save = self._local_checkpoint_manager.should_save(step)
+    else:
+      should_save = self._persistent_checkpoint_manager.should_save(step)
     return bool(_global_max([int(should_save)], self._global_broadcast_fn)[0])
 
   def delete(self, step: int):
@@ -981,12 +984,12 @@ class _MultisliceCheckpointManager(
     persistent_saved = False
     local_saved = False
     if self.in_primary_slice:
+      logging.info('Maybe saving at step %d (local).', step)
+    else:
       logging.info('Maybe saving at step %d (persistent)[Jun: ALWAYS SKIP].', step)
     #   persistent_saved = self._persistent_checkpoint_manager.save(
     #       step, args=args.state, force=force
     #   )
-    else:
-      logging.info('Maybe saving at step %d (local).', step)
 
       args_dict = dict(args.items())
       args_dict[_PROCESS_METADATA_NAME] = (
@@ -1388,9 +1391,9 @@ class _MultisliceCheckpointManager(
     """
     logging.info('Waiting for checkpoint to complete.')
     if self.in_primary_slice:
-      self._persistent_checkpoint_manager.wait_until_finished()
-    else:
       self._local_checkpoint_manager.wait_until_finished()
+    else:
+      self._persistent_checkpoint_manager.wait_until_finished()
 
     multihost.sync_global_processes(
       multihost.unique_barrier_key(
@@ -1409,18 +1412,18 @@ class _MultisliceCheckpointManager(
     Delegates to underlying Checkpointer.
     """
     if self.in_primary_slice:
-      self._persistent_checkpoint_manager.check_for_errors()
-    else:
       self._local_checkpoint_manager.check_for_errors()
+    else:
+      self._persistent_checkpoint_manager.check_for_errors()
 
   def close(self):
     """Waits for outstanding operations to finish and closes Checkpointers."""
     logging.info('Closing CheckpointManager.')
     self.wait_until_finished()
     if self.in_primary_slice:
-      self._persistent_checkpoint_manager.close()
-    else:
       self._local_checkpoint_manager.close()
+    else:
+      self._persistent_checkpoint_manager.close()
 
   def __contextmanager__(
       self,
