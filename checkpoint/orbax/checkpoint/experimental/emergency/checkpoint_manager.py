@@ -1033,10 +1033,15 @@ class _MultisliceCheckpointManager(
         self._local_directory,
     )
 
+    # !!! we only look into processes with local checkpoint manager in primary slice
+    _active_devices = multislice.replica_devices(self._global_mesh, replica_id=_PRIMARY_REPLICA_ID, replica_axis_index=self._replica_axis_index)
+    _active_processes = multihost.unique_processes_from_devices(_active_devices)
+
     # The steps that each process actually has in local storage.
     per_process_steps = _process_local_to_global(
         local_steps,
-        set(range(jax.process_count())),
+        # set(range(jax.process_count())),
+        _active_processes,
         timeout=self._coordination_timeout_secs,
         barrier_id=_BarrierIdentifier.FIND_COMPLETE_SLICE,
     )
