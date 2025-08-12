@@ -24,7 +24,7 @@ from jax.experimental import multihost_utils
 import numpy as np
 
 # Default timeout in seconds.
-_DEFAULT_BARRIER_TIMEOUT = 300
+_DEFAULT_BARRIER_TIMEOUT = 600
 
 # Used in unit tests with multiple parallel test cases.
 _TEST_CASE_INDEX = None
