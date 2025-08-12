@@ -322,6 +322,7 @@ def _pad_steps(steps, target):
 def _process_local_to_global(
     values: Set[int],
     barrier_processes: Set[int],
+    replica_id: int,
     *,
     timeout: int,
     barrier_id: _BarrierIdentifier,
@@ -340,7 +341,8 @@ def _process_local_to_global(
   """
   barrier_name_and_id = f'{barrier_id.name}_{barrier_id.get_counter()}'
   client = multihost.get_jax_distributed_client()
-  broadcast_dir_key = f'broadcast_{barrier_name_and_id}/'
+  fixed_broadcast_dir_key = f'broadcast_{barrier_name_and_id}/{_SECONDARY_REPLICA_ID}/'
+  broadcast_dir_key = f'broadcast_{barrier_name_and_id}/{replica_id}/'
   broadcast_dir_key = multihost._unique_barrier_key(broadcast_dir_key) + '/'  # pylint: disable=protected-access
   broadcast_key = broadcast_dir_key + str(multihost.process_index())
   client.key_value_set(broadcast_key, ','.join([str(s) for s in values]))
@@ -367,7 +369,7 @@ def _process_local_to_global(
 
   per_process_values = {
       int(k.split('/')[-1]): {int(s) for s in v.split(',')} if v else set()
-      for k, v in client.key_value_dir_get(broadcast_dir_key)
+      for k, v in client.key_value_dir_get(fixed_broadcast_dir_key)
   }
   assert set(per_process_values.keys()) == barrier_processes
   return per_process_values
@@ -569,6 +571,7 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
       per_process_steps = _process_local_to_global(
           local_steps,
           self._active_processes,
+          multislice.process_replica_id(multihost.process_index(), self._global_mesh, replica_axis_index=self._replica_axis_index),
           timeout=self._coordination_timeout_secs,
           barrier_id=_BarrierIdentifier.LOCAL_ALL_STEPS,
       )
@@ -1034,6 +1037,7 @@ class _MultisliceCheckpointManager(
     per_process_steps = _process_local_to_global(
         local_steps,
         set(range(jax.process_count())),
+        multislice.process_replica_id(multihost.process_index(), self._global_mesh, replica_axis_index=self._replica_axis_index),
         timeout=self._coordination_timeout_secs,
         barrier_id=_BarrierIdentifier.FIND_COMPLETE_SLICE,
     )
