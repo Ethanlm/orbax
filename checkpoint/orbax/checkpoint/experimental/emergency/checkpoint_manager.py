@@ -1058,14 +1058,18 @@ class _MultisliceCheckpointManager(
     )
 
     local_steps = local_steps[:N] + [-1] * (N - len(local_steps))
-    per_process_steps_arr = _global_arr(local_steps, self._global_broadcast_fn)
-    per_process_steps = {i: set(step for step in per_process_steps_arr[i].tolist() if step != -1) for i in range(multihost.process_count())}
-    logging.vlog(1, 'per_process_steps=%s', per_process_steps)
-    per_slice_steps = _common_values_per_slice(
-        per_process_steps,
-        self._global_mesh,
-        replica_axis_index=self._replica_axis_index,
-    )
+    per_process_steps = _global_arr(local_steps, self._global_broadcast_fn)
+    per_process_steps = per_process_steps.reshape(multislice.slice_count(), -1, N)
+    logging.vlog(1, 'per_process_steps[%s]=%s', per_process_steps.shape, per_process_steps.flatten())
+
+    per_slice_steps = {}
+    for i, slice_steps in enumerate(per_process_steps):
+      valid_steps = set()
+      steps, counts = np.unique(slice_steps, return_counts=True)
+      for s, c in zip(steps.tolist(), counts.tolist()):
+        if s != -1 and c == per_process_steps.shape[1]:
+          valid_steps.add(s)
+      per_slice_steps[i] = valid_steps
     logging.info('per_slice_steps=%s', per_slice_steps)
     return per_slice_steps
 
