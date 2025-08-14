@@ -419,11 +419,10 @@ def _get_global_broadcast_fn() -> Callable[[jax.Array], jax.Array]:
       out_shardings=jax.sharding.NamedSharding(slice_mesh, P()),
   )
 
-
-def _global_max(
+def _global_arr(
     values: list[int], global_broadcast_fn: Callable[[jax.Array], jax.Array]
-) -> list[int]:
-  """Computes the global max of a list of values."""
+):
+  """Computes the global array of a list of values."""
   num_hosts = multihost.process_count()
   num_devices_per_host = jax.local_device_count()
   slice_mesh = jax.sharding.Mesh(
@@ -449,8 +448,15 @@ def _global_max(
       np.sum(result_arr, axis=1) / num_devices_per_host == result_arr[:, 0, :]
   ).all()
   # Select values from first device and compute max for each value across
-  # hosts.
-  return list(np.max(result_arr[:, 0, :], axis=0).astype(int))
+  # hosts
+  return result_arr[:, 0, :]
+
+def _global_max(
+    values: list[int], global_broadcast_fn: Callable[[jax.Array], jax.Array]
+) -> list[int]:
+  """Computes the global max of a list of values."""
+  arr = _global_arr(values, global_broadcast_fn)
+  return list(np.max(arr, axis=0).astype(int))
 
 
 class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
@@ -483,14 +489,15 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
     self._global_mesh = global_mesh
     self._replica_axis_index = options.replica_axis_index
 
-    devices = np.asarray(self._global_mesh.devices)
-    # Select all devices except those belonging to the primary replica.
-    if not options.local.debug_use_full_global_mesh:
-      devices = _all_devices_excepting_slice(
-          devices,
-          replica_id=primary_replica_id,
-          replica_axis_index=self._replica_axis_index,
-      )
+    devices = multislice.local_replica_devices(global_mesh, replica_axis_index=self._replica_axis_index)
+    # devices = np.asarray(self._global_mesh.devices)
+    # # Select all devices except those belonging to the primary replica.
+    # if not options.local.debug_use_full_global_mesh:
+    #   devices = _all_devices_excepting_slice(
+    #       devices,
+    #       replica_id=primary_replica_id,
+    #       replica_axis_index=self._replica_axis_index,
+    #   )
 
     self._active_processes = multihost.unique_processes_from_devices(devices)
     multiprocessing_options = checkpoint_manager.MultiprocessingOptions(
@@ -535,7 +542,9 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
     # Set additional properties.
     self._max_to_keep = options.local.max_to_keep
     self._local_options = options.local
-    self._steps = list(self.all_steps(read=True))
+    
+    # updated in multislice manager
+    # self._steps = list(self.all_steps(read=True))
 
   def _run_initial_garbage_collection(self):
     """Remove steps that might be left over from previous runs."""
@@ -575,6 +584,7 @@ class _LocalCheckpointManager(checkpoint_manager.CheckpointManager):
       A sequence of steps (integers)
     """
     if read:
+      raise NotImplementedError("!!! Shouldn't reach here")
       local_steps = set(self.local_host_steps(read))
       # Per-process mapping of the local steps that each process knows about.
       per_process_steps = _process_local_to_global(
@@ -884,8 +894,10 @@ class _MultisliceCheckpointManager(
     """
     logging.info('Retrieving all steps.')
     if read:
-      per_slice_local_steps = self._get_per_slice_local_steps()
-      self._local_steps = list(set.union(*per_slice_local_steps.values()))
+      self.per_slice_local_steps = self._get_per_slice_local_steps_fast()
+      self._local_steps = list(set.union(*self.per_slice_local_steps.values()))
+      if not self.in_primary_slice:
+        self._local_checkpoint_manager._steps = [s for s in self._local_steps]
       self._persistent_steps = step_lib.checkpoint_steps(
           self._persistent_directory
       )
@@ -1034,6 +1046,29 @@ class _MultisliceCheckpointManager(
 
     return persistent_saved or local_saved
 
+  def _get_per_slice_local_steps_fast(self, N:int=2) -> Dict[int, Set[int]]:
+    local_steps = sorted(step_lib.checkpoint_steps(self._local_directory), reverse=True)
+
+    logging.info(
+        'Found steps: %s in local host storage: %s. Only first %d will be used.',
+        local_steps,
+        self._local_directory,
+        N,
+    )
+
+    local_steps = local_steps[:N] + [-1] * (N - len(local_steps))
+    per_process_steps_arr = _global_arr(local_steps, self._global_broadcast_fn)
+    per_process_steps = {i: set(step for step in per_process_steps_arr[i].tolist() if step != -1) for i in range(multihost.process_count())}
+    logging.vlog(1, 'per_process_steps=%s', per_process_steps)
+    per_slice_steps = _common_values_per_slice(
+        per_process_steps,
+        self._global_mesh,
+        replica_axis_index=self._replica_axis_index,
+    )
+    logging.info('per_slice_steps=%s', per_slice_steps)
+    return per_slice_steps
+
+
   def _get_per_slice_local_steps(self) -> Dict[int, Set[int]]:
     local_steps = set(step_lib.checkpoint_steps(self._local_directory))
     logging.info(
@@ -1061,9 +1096,7 @@ class _MultisliceCheckpointManager(
 
   def _find_slice_with_complete_local_checkpoint(self, step: int) -> int:
     """Return the slice id which has the step."""
-    per_slice_steps = self._get_per_slice_local_steps()
-
-    for slice_id, steps in per_slice_steps.items():
+    for slice_id, steps in self.per_slice_local_steps.items():
       if step in steps:
         return slice_id
     return -1

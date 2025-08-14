@@ -877,11 +877,11 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
         )
     )
 
-    self._save_progress_tracker = synchronization.MultihostSynchronizedValue(
-        value=False,
-        multiprocessing_options=self._multiprocessing_options,
-        async_options=self._options.async_options,
-    )
+    # self._save_progress_tracker = synchronization.MultihostSynchronizedValue(
+    #     value=False,
+    #     multiprocessing_options=self._multiprocessing_options,
+    #     async_options=self._options.async_options,
+    # )
 
     logging.info(
         '[process=%s][thread=%s] CheckpointManager created,  primary_host=%s,'
@@ -1390,7 +1390,7 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
     )
     # We consider the save in progress only when we have finished waiting for
     # previous save to complete.
-    self._save_progress_tracker.set(True)
+    # self._save_progress_tracker.set(True)
     if step in self.all_steps():
       raise StepAlreadyExistsError(
           f'Checkpoint for step {step} already exists.'
@@ -1974,6 +1974,7 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
 
   def is_saving_in_progress(self) -> bool:
     """Returns whether a checkpoint save is in progress."""
+    return False
     start_time = time.time()
     is_saving_in_progress = self._save_progress_tracker.get()
     logging.vlog(
@@ -2056,7 +2057,7 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
           step,
       )
       # Set save in progress does a barrier sync so we don't need to do it here.
-      self._save_progress_tracker.set(False)
+    #   self._save_progress_tracker.set(False)
       logging.info(
           '[process=%s][thread=%s][step=%s] CheckpointManager Save Finalize is'
           ' done on all hosts.',
