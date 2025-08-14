@@ -816,10 +816,11 @@ class _MultisliceCheckpointManager(
     # clean up tmp directories in ram
     self._cleanup_local_tmp_directories()
 
+    self._global_broadcast_fn = _get_global_broadcast_fn()
+
     # Initialize step cache.
     self.all_steps(read=True)
 
-    self._global_broadcast_fn = _get_global_broadcast_fn()
 
     logging.info(
         'Created emergency.CheckpointManager with slice_id=%d,'
