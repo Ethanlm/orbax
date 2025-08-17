@@ -469,7 +469,8 @@ class _StandardNameFormat(NameFormat[Metadata]):
       return self._find_all_with_single_host_load_and_broadcast(base_path)
 
     # <step_prefix>_?<0 padding>?*
-    step_paths = self._glob_step_paths(base_path)
+    # step_paths = self._glob_step_paths(base_path)
+    step_paths = [p for p in epath.Path(base_path).iterdir() if p.name.startswith(step_prefix_with_underscore(self.step_prefix))]
     return build_step_metadatas(step_paths, self._build_metadata)
 
   def find_step(self, base_path: epath.PathLike, step: int) -> Metadata:
