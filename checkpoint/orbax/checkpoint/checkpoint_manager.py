@@ -1356,6 +1356,14 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
     if not force and not self.should_save(step):
       return False
 
+    save_directory = self._get_write_step_directory(step, self.directory)
+    if force == False and save_directory.exists():
+      # https://chat.google.com/room/AAAAE7IGW88/KjvlqVCMFUY/KjvlqVCMFUY?cls=10
+      logging.info(
+          '[process=%s] Checkpoint folder already exists. Skip saving checkpoint at step %d to %s', process_index, step, save_directory
+      )
+      return False
+
     multihost.sync_global_processes(
         multihost.unique_barrier_key(
             'CheckpointManager:save_start',
@@ -1442,7 +1450,6 @@ class CheckpointManager(AbstractCheckpointManager, epy.ContextManager):
       args_dict[METRIC_ITEM_NAME] = args_lib.JsonSave(metrics)
     args = args_lib.Composite(**args_dict)
 
-    save_directory = self._get_write_step_directory(step, self.directory)
     logging.info(
         '[process=%s] Saving checkpoint at step %d', process_index, step
     )
