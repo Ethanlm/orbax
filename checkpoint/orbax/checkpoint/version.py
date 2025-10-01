@@ -23,8 +23,8 @@ __version__ = '0.11.20'
 
 # TODO: b/362813406 - Add latest change timestamp and commit number.
 def get_details() -> str:
-    """Returns the Orbax version details.
+  """Returns the Orbax version details.
 
-    It includes release version.
-    """
-    return f"orbax-checkpoint version: {__version__}"
+  It includes release version.
+  """
+  return f'orbax-checkpoint version: {__version__}'
